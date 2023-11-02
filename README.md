@@ -9,6 +9,8 @@ The ticket1090 program spits out a "moving traffic violation" file in .txt and/o
 
 Generated .gpx files work well with QGIS.
 
+![QGIS output](1697961664a.png)
+
 Building expects the Lazarus IDE in order to process the .lpi files (or the overall .lpg file), but the individual programs should compile fine with FPC invoked directly. This time round I'm not creating a makefile, sorry.
 
 There might still be spurious references to Subversion utilities, which in your case you have not got.
