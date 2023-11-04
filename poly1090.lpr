@@ -94,6 +94,64 @@ begin
 end { parsePoly } ;
 
 
+(* Parse comma-separated ordinate pairs from the parameter, return the number
+  safely processed or -1; in practice anything less than 2 is an error since
+  they cannot describe a meaningful polygon. If there are at least two vertices
+  then if necessary close them by appending the first to the end, then convert
+  them to a list of number pairs.
+*)
+function parseBounds(line: ansistring): integer;
+
+var
+  param: ansistring;
+  p1, p2: ansistring;
+  vertexStrings: TStringList;
+  i: integer;
+  v: vertex;
+
+begin
+  result := 0;
+  vertexStrings := TStringList.Create;
+  try
+    Delete(line, 1, Length('# BOUNDS'));
+    line := Trim(line);
+    while line <> '' do begin
+      param := line;
+      if Pos(' ', param) > 0 then begin
+        SetLength(param, Pos(' ', param) - 1);
+        Delete(line, 1, Length(param) + 1);
+        line := Trim(line)
+      end else
+        line := '';
+      if not ParseFloatPairStr(param, p1, p2) then
+        break;
+      vertexStrings.Append(p1 + ',' + p2);
+      result += 1
+    end;
+    if vertexStrings.Count > 0 then begin
+
+(* We have a good list of vertices. Make sure it's closed, this is done using a *)
+(* text comparison (having already got rid of spurious leading and trailing     *)
+(* zeros) since it will be easier than having to diagnose any "not quite the    *)
+(* same" errors in binary floating point format.                                *)
+
+      if vertexStrings[vertexStrings.Count - 1] <> vertexStrings[0] then
+        vertexStrings.Append(vertexStrings[0]);
+
+(* Parse it into an array.                                                      *)
+
+      for i := 0 to vertexStrings.Count - 1 do begin
+        v.lat := StrToFloat(ExtractDelimited(1, vertexStrings[i], [',']));
+        v.long := StrToFloat(ExtractDelimited(2, vertexStrings[i], [',']));
+        vertices := Concat(vertices, [v])
+      end
+    end
+  finally
+    vertexStrings.Free
+  end
+end { parseBounds } ;
+
+
 (* The bounding polygon might be also used by a program which generates a .gpx
   file etc.
 *)
@@ -161,23 +219,21 @@ begin
 (* Relative to the fixed point, determine the angle subtended by each edge of   *)
 (* the polygon. Save this in degrees for relatively easy debugging.             *)
 
-// TODO : I have a niggling feeling that inPoly() could be improved.
-// Possibly by making sure the vertices are sorted (relative to the centroid?)
-// and retaining the sign of each angle. If I am correct, this would result in
-// the total either being (very close to) 360 or (very close to) 0 degrees.
-//
-// HOWEVER: I suspect that this approach would fail under circumstances related
-// to the "Illumination Problem" described by Penrose, Tokarsky and others.
-
-// Test with courses flown in at arbitrary angles, place it on the Meridian and
-// so on.
+// Should test with courses flown in at arbitrary angles, place it on the Meridian
+// and so on.
 
   for i := 0 to Length(vertices) - 2 do begin
     deg1 := ArcTan2(vertices[i].lat - here.lat, vertices[i].long - here.long) * (180 / Pi);
     deg2 := ArcTan2(vertices[i + 1].lat - here.lat, vertices[i + 1].long - here.long) * (180 / Pi);
-    subtends := Abs(deg1 - deg2);
-    if subtends > 180.0 then
-      subtends := 360.0 - subtends;
+
+// This from Alpine on the Lazarus forum.
+
+    subtends := deg1 - deg2;
+    while subtends > 180 do
+      subtends := subtends - 360;
+    while subtends < -180 do
+      subtends := subtends + 360;
+
     total += subtends;
 // WriteLn(deg1:12:5, deg2:12:5, subtends:12:5);
   end;
@@ -185,8 +241,7 @@ begin
 
 (* If the total angle is 360 degrees, then we must be inside the polygon. Any   *)
 (* smaller angle is outside, but I don't know quite how much slop I should      *)
-(* allow... testing suggests that the transition is abrupt even without taking  *)
-(* the sign of the angles into account.                                         *)
+(* allow... testing suggests that the transition is abrupt.                     *)
 
   result := (total >= lLim) and (total < uLim)
 // WriteLn('Score: ', total:12:5)
@@ -223,16 +278,20 @@ begin
   for i := 0 to Length(vertices) - 2 do begin
     rad1 := ArcTan2(vertices[i].lat - here.lat, vertices[i].long - here.long);
     rad2 := ArcTan2(vertices[i + 1].lat - here.lat, vertices[i + 1].long - here.long);
-    subtends := Abs(rad1 - rad2);
-    if subtends > Pi then
-      subtends := (2 * Pi) - subtends;
+
+// This from Alpine on the Lazarus forum.
+
+    subtends := rad1 - rad2;
+    while subtends > Pi do
+      subtends := subtends - (2 * Pi);
+    while subtends < -Pi do
+      subtends := subtends + (2 * Pi);
     total += subtends
   end;
 
 (* If the total angle is 2Pi radians, then we must be inside the polygon. Any   *)
 (* smaller angle is outside, but I don't know quite how much slop I should      *)
-(* allow... testing suggests that the transition is abrupt even without taking  *)
-(* the sign of the angles into account.                                         *)
+(* allow... testing suggests that the transition is abrupt.                     *)
 
   result := (total >= lLim) and (total < uLim)
 end { inPolyRads } ;
@@ -245,21 +304,21 @@ end { inPolyRads } ;
 function PointInPolygon(here: vertex) : Boolean;
 
  // The code below is from Wm. Randolph Franklin <wrf@ecse.rpi.edu>
-   // with some minor modifications for speed.  It returns 1 for strictly
-   // interior points, 0 for strictly exterior, and 0 or 1 for points on
-   // the boundary.
-  var
-    I, J: Integer;
-  begin
-    Result:=False;
-     for I:=0 to pred(Length(vertices) - 1) do begin
-      j := succ(i);
-      if ((((vertices[i].lat<=here.lat) and (here.lat<vertices[j].lat)) or
-        ((vertices[j].lat<=here.lat) and (here.lat<vertices[i].lat))) and
-        (here.long<(vertices[j].long-vertices[i].long)*(here.lat-vertices[i].lat)/(vertices[j].lat-vertices[i].lat)+vertices[i].long)) then
-        Result:=not Result;
-    end;
- end;
+ // with some minor modifications for speed.  It returns 1 for strictly
+ // interior points, 0 for strictly exterior, and 0 or 1 for points on
+ // the boundary.
+var
+  I, J: Integer;
+begin
+  Result:=False;
+   for I:=0 to pred(Length(vertices) - 1) do begin
+    j := succ(i);
+    if ((((vertices[i].lat<=here.lat) and (here.lat<vertices[j].lat)) or
+      ((vertices[j].lat<=here.lat) and (here.lat<vertices[i].lat))) and
+      (here.long<(vertices[j].long-vertices[i].long)*(here.lat-vertices[i].lat)/(vertices[j].lat-vertices[i].lat)+vertices[i].long)) then
+      Result:=not Result;
+  end;
+end;
 
 
 function inPoly(here: vertex): boolean; inline;
@@ -278,7 +337,7 @@ end { inPoly } ;
 procedure emptyLine;
 
 var
-  score: integer= 0;
+  ordinates: integer= 0;
   i, p: integer;
   scratch: ansistring;
   markers: TPosSeqLog;
@@ -298,28 +357,31 @@ begin
 (* 123456789012345678901234567890123456789012345678901234567890                 *)
 (*          1         2         3         4         5                           *)
 
-    for i := 0 to lines.Count - 1 do
+    for i := 0 to lines.Count - 1 do begin
       if PosSeq(['CPR latitude: ', '', '.', ' '], lines[i] + ' ', markers) > 0 then begin
 //        scratch := Copy(lines[i], Pos(': ', lines[i]) + 2, 999);
 //        SetLength(scratch, Pos(' ', scratch) - 1);
         scratch := Copy(lines[i], markers[1], markers[3] - markers[1]);
         here.lat := StrToFloat(scratch);
-        score += 1
+        ordinates += 1
       end else
         if PosSeq(['CPR longitude: ', '', '.', ' '], lines[i] + ' ', markers) > 0 then begin
 //          scratch := Copy(lines[i], Pos(': ', lines[i]) + 2, 999);
 //          SetLength(scratch, Pos(' ', scratch) - 1);
           scratch := Copy(lines[i], markers[1], markers[3] - markers[1]);
           here.long := StrToFloat(scratch);
-          score += 1
+          ordinates += 1
         end;
-    if score <> 2 then
+      if ordinates > 1 then
+        break
+    end;
+    if ordinates <> 2 then
       exit;                             (* Via finally clause                   *)
 
 (* Is the current aircraft position, defined by its latitude and longitude,     *)
 (* inside the polygon?                                                          *)
 
-    if inPoly(here) then begin
+    if inPoly(here) xor commandline.option.knot then begin
       for i := 0 to lines.Count - 1 do
         WriteLn( { 'IN  ', } lines[i]);
       WriteLn
@@ -352,15 +414,13 @@ begin
 (* read an ordinary file makes debugging easier (and if I didn't expect         *)
 (* debugging to be an issue, I'd probably use Perl for the job).                *)
 (*                                                                              *)
-(* if parsePoly() swallows two parameters (where each is a comma-separated pair *)
-(* of ordinates) then coordinates will be 2. If ParamCount() is 2 then there is *)
-(* no input filename, and so on.                                                *)
+(* If parsePoly() swallows three parameters (where each is a comma-separated    *)
+(* pair of ordinates) then coordinates will be 3. Fewer than 3 makes no sense,  *)
+(* unless in the future I want to do something like defining a circle (as a     *)
+(* series of segments, so that it can be stored as a route in a .gpx file). If  *)
+(* ParamCount() is 3 then there is no input filename, and so on.                *)
 
   coordinates := parsePoly();
-  if coordinates < 2 then begin
-    WriteLn(stderr);
-    halt
-  end;
   case ParamCount(commandline) - coordinates of
     0: ;
     1: begin
@@ -376,13 +436,28 @@ reassignInput:
     goto reassignInput
   end;
   lines := TStringList.Create;
-  dumpPoly(output);
+  if Length(vertices) <> 0 then
+    dumpPoly(output);
   while not Eof() do begin
     ReadLn(line);
-    if line = '' then
-      emptyLine
-    else
-      nonEmptyLine
+
+(* I don't entirely know what the use case of specifying the bounding polygon   *)
+(* in the input file is going to be, other than testing odd shapes and tracks   *)
+(* generated by MakeTrack1090.                                                  *)
+
+    if Pos('# BOUNDS', line) = 1 then begin
+      parseBounds(line);
+      dumpPoly(output)
+    end else begin
+      if Length(vertices) = 0 then begin
+        WriteLn(stderr);
+        halt
+      end;
+      if line = '' then
+        emptyLine
+      else
+        nonEmptyLine
+    end
   end;
   FreeAndNil(lines)
 end.

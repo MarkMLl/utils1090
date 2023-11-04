@@ -30,7 +30,7 @@ type
                 fileBase: ansistring;
                 textFile: text;
                 gpxFile: text;
-                lastSeen: qword;
+                firstSeen, lastSeen: qword;
                 procedure writeText(var t: text; const r: TStringList);
                 procedure writeGpx(var g: text; const r: TStringList);
               public
@@ -76,10 +76,12 @@ begin
     Delete(line, 1, Length('# BOUNDS'));
     line := Trim(line);
     while line <> '' do begin
-      param := line;
-      SetLength(param, Pos(' ', param) - 1);
-      Delete(line, 1, Length(param) + 1);
-      line := Trim(line);
+      if Pos(' ', param) > 0 then begin
+        SetLength(param, Pos(' ', param) - 1);
+        Delete(line, 1, Length(param) + 1);
+        line := Trim(line)
+      end else
+        line := '';
       if not ParseFloatPairStr(param, p1, p2) then
         break;
       vertexStrings.Append(p1 + ',' + p2);
@@ -152,8 +154,8 @@ begin
 end { isoToUnix } ;
 
 
-(* Create an object associated with the intrusion. This open an output file
-  and writes the first record.
+(* Create an object associated with the incursion. This open an output file and
+  writes the first record.
 *)
 constructor TIncursion.Create(const hexId: ansistring; const firstRecord: TStringList);
 
@@ -180,7 +182,8 @@ begin
       fileBase := AnsiReplaceStr(dateAndTime, ' ', '_') + '_' + hexId;
       break
     end;
-  lastSeen := isoToUnix(dateAndTime);
+  firstSeen := isoToUnix(dateAndTime);
+  lastSeen := firstSeen;
   if commandline.option.gpx in [0, 1] then begin
     Assign(textFile, fileBase + '.txt');
     Rewrite(textFile);
@@ -197,9 +200,12 @@ begin
 end { TIncursion.Create } ;
 
 
-(* Flush and close the output file associated with the intrusion.
+(* Flush and close the output file associated with the incursion.
 *)
 destructor TIncursion.Destroy;
+
+const
+  cutoff= 5;
 
 begin
   if commandline.option.gpx in [0, 1] then
@@ -209,11 +215,31 @@ begin
     WriteGpxFooterB(gpxFile);
     CloseFile(gpxFile)
   end;
+
+// TODO : Needs a test that the incursion has lasted more than (say) five secs.
+// This is mostly to support a situation where concave (reentrant) polygons are
+// known to be reliable, and two areas have been intentionally joined by a
+// "wasp waist" of negligible thickness in lieu of separate definition of more
+// than one.
+
+// Code below not tested, pending the new flying season. Could a --utc and --iso
+// decision be made by inspecting incoming data, to keep the timestamping
+// consistent?
+
+(*  if lastSeen - firstSeen < cutoff then begin
+    Write(IsoFormatDateTime(UTC_Now(), IsoDateTTime, 2) + 'Z');
+    Write(' Discarding ticket for ', lastSeen - firstSeen, '-sec incursion by ',
+                                        TIncursion(incursions.Objects[0]).WhoAmI, '.');
+    if commandline.option.gpx in [0, 1] then
+      DeleteFile(fileBase + '.txt');
+    if commandline.option.gpx in [1, 2] then
+      DeleteFile(fileBase + '.gpx')
+  end; *)
   inherited destroy
 end { TIncursion.Destroy } ;
 
 
-(* Write a record associated with the intrusion.
+(* Write a record associated with the incursion.
 *)
 procedure TIncursion.Append(const currentRecord: TStringList);
 
@@ -301,7 +327,7 @@ begin
 end { TIncursion.writegpx } ;
 
 
-(* If the most recent record associated with the intrusion is more than a minute
+(* If the most recent record associated with the incursion is more than a minute
   old then return true.
 *)
 function TIncursion.Expired(): boolean;
@@ -374,7 +400,7 @@ begin
     end else
       TIncursion(incursions.Objects[index]).Append(lines);
 
-(* Is it more than a minute since we last checked for expired intrusions?       *)
+(* Is it more than a minute since we last checked for expired incursions?       *)
 (* Assume that freeing the incursion object flushes and closes the file etc.    *)
 
     if dateTimeNow - LastFlush > 1.0 / MinsPerDay then begin

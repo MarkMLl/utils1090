@@ -66,9 +66,12 @@ begin
     line := Trim(line);
     while line <> '' do begin
       param := line;
-      SetLength(param, Pos(' ', param) - 1);
-      Delete(line, 1, Length(param) + 1);
-      line := Trim(line);
+      if Pos(' ', param) > 0 then begin
+        SetLength(param, Pos(' ', param) - 1);
+        Delete(line, 1, Length(param) + 1);
+        line := Trim(line)
+      end else
+        line := '';
       if not ParseFloatPairStr(param, p1, p2) then
         break;
       vertexStrings.Append(p1 + ',' + p2);
@@ -96,6 +99,7 @@ begin
     vertexStrings.Free
   end
 end { parseBounds } ;
+
 
 
 procedure writeBounds(var t: text);

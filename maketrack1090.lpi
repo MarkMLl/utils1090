@@ -9,7 +9,7 @@
         <MainUnitHasScaledStatement Value="False"/>
       </Flags>
       <SessionStorage Value="InProjectDir"/>
-      <Title Value="adsb1090_to_gpx"/>
+      <Title Value="maketrack1090"/>
       <UseAppBundle Value="False"/>
       <ResourceType Value="res"/>
     </General>
@@ -25,28 +25,20 @@
     </RunParams>
     <Units>
       <Unit>
-        <Filename Value="adsb1090_to_gpx.lpr"/>
+        <Filename Value="maketrack1090.lpr"/>
         <IsPartOfProject Value="True"/>
-      </Unit>
-      <Unit>
-        <Filename Value="gpxcommon.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="GpxCommon"/>
-      </Unit>
-      <Unit>
-        <Filename Value="params1090.pas"/>
-        <IsPartOfProject Value="True"/>
-        <UnitName Value="Params1090"/>
+        <UnitName Value="MakeTrack1090"/>
       </Unit>
     </Units>
   </ProjectOptions>
   <CompilerOptions>
     <Version Value="11"/>
     <Target>
-      <Filename Value="adsb1090_to_gpx-$(TargetCPU)-$(TargetOS)"/>
+      <Filename Value="maketrack1090-$(TargetCPU)-$(TargetOS)"/>
     </Target>
     <SearchPaths>
       <IncludeFiles Value="$(ProjOutDir)"/>
+      <OtherUnitFiles Value="../inifiles/trunk"/>
       <UnitOutputDirectory Value="lib/$(TargetCPU)-$(TargetOS)"/>
     </SearchPaths>
     <Parsing>
@@ -67,19 +59,8 @@
       <Debugging>
         <DebugInfoType Value="dsDwarf2Set"/>
       </Debugging>
-      <Options>
-        <PassLinkerOptions Value="True"/>
-        <LinkerOptions Value="--build-id"/>
-      </Options>
     </Linking>
     <Other>
-      <CustomOptions Value="-dHAS_SVN
--dHAS_FPC_SVN
--vq"/>
-      <ExecuteBefore>
-        <Command Value="/bin/sh -c &quot;echo -n C`svnversion -n`C |tr A-G %-+ >project_svnrevision.inc &amp; echo -n C`svnversion -n $FPCSrcDir()`C |tr A-G %-+>fpc_svnrevision.inc&quot;"/>
-        <CompileReasons Run="False"/>
-      </ExecuteBefore>
       <ExecuteAfter>
         <Command Value="date"/>
         <CompileReasons Run="False"/>

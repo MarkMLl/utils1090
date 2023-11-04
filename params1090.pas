@@ -33,6 +33,7 @@ type
               newline: boolean;
               tee: boolean;
               filter: boolean;
+              knot: boolean;
               gpx: integer
             end;
 
@@ -204,14 +205,14 @@ begin
                         WriteLn('--filter option is set then only matched records will be output.') }
                       end;
        'poly1090':    begin
-                        WriteLn('Expect piped input from Dump1090, typically filtered by match1090 to limit it');
+                        WriteLn('Expect piped input from Dump1090, typically filtered by Match1090 to limit it');
                         WriteLn('to e.g. aircraft below a certain height. Using a list of lat,long coordinates');
                         WriteLn('on the command line, ignore all records which don''t indicate an aircraft');
                         WriteLn('intruding into the defined polygon.');
                         WriteLn;
                         WriteLn('Hint: it''s worth getting into the habit of always putting -- before the');
                         WriteLn('parameters, since otherwise the command line handling might be confused by a');
-                        WriteLn('negative (i.e. Southern hemisphere) latidude.');
+                        WriteLn('negative (i.e. Southern hemisphere) latitude.');
                       end;
        'ticket1090':  begin
                         WriteLn('Expect the input to be piped records, originally emitted by Dump1090 but');
@@ -224,7 +225,7 @@ begin
                         WriteLn('output reserved for status messages.')
                       end;
        'adsb_to_gpx': begin
-                        WriteLn('Expect piped input from Dump1090, typically filtered by match1090 to limit it');
+                        WriteLn('Expect piped input from Dump1090, typically filtered by Match1090 to limit it');
                         WriteLn('to a single aircraft. Output a .gpx file, suitable for input to Google Earth');
                         WriteLn('or QGIS.')
                       end
@@ -344,7 +345,7 @@ begin
                 end;
     'N',
     'nl':       begin
-                  WriteLn('  -n, --nl');
+                  WriteLn('  -N, --nl');
                   WriteLn('        Append a newline to each group of matched lines.');
                   WriteLn
                 end;
@@ -360,6 +361,18 @@ begin
                   WriteLn('        Send matched lines to stderr and matched records to stdout.');
                   WriteLn
                 end;
+    'n',
+    'not':      begin
+                  WriteLn('  -n, --not');
+                  WriteLn('        select matches outside rather than inside the polygon.');
+                  WriteLn
+                end;
+    'i',
+    'in':       begin
+                  WriteLn('  -i, --in');
+                  WriteLn('        select matches inside the polygon. This may be omitted');
+                  WriteLn
+                end;
     'g',
     'gpx':      begin
                   WriteLn('  -g, --gpx[=only]');
@@ -371,7 +384,7 @@ begin
     case projName of
       'match1090':   doHelp2(projName, ['match', 'show', 'ground', 'once', 'utc', 'time', 'iso', 'nl' { , 'tee', 'filter' } ]);
       'ticket1090':  doHelp2(projName, ['gpx']);
-      'poly1090',
+      'poly1090':    doHelp2(projName, ['not', 'in']);
       'adsb_to_gpx': doHelp2(projname, []);
     otherwise
     end
@@ -398,7 +411,7 @@ begin
                        WriteLn('Display the first field associated with the indicated ICAO code that has any of');
                        WriteLn('the altitude, latitude or longitude fields.');
                        WriteLn;
-                       WriteLn('        $ match1090 --utc --match=Hex:4D3520 --strict=Alt,Lat,Long < 1090.txt');
+                       WriteLn('        $ match1090 --utc --match=Hex:4D3520 --strict=Alt,Lat,Long --once < 1090.txt');
                        WriteLn;
                        WriteLn('Display the first field associated with the indicated ICAO code that has all of');
                        WriteLn('the altitude, latitude or longitude fields and where latitude and longitude pass');
@@ -730,6 +743,8 @@ begin
   addOption('nl', 'N');
   addOption('tee', 'T');
   addOption('filter', 'F');
+  addOption('not', 'n');
+  addOption('in', 'i');
   addOption('gpx', 'g', Optional_Argument); (* Resist temptation of changing to G *)
   addOption('', #$00);                  (* Mandatory end-array marker           *)
 
@@ -820,6 +835,9 @@ s:           commandline.showList := TStringList.Create;
              commandline.option.tee := true;
       'F': if valid(commandLine) then
              commandline.option.filter := true;
+      'n': if valid(commandLine) then
+             commandline.option.knot := true;
+      'i': ;
 
 (* The -g or --gpx option is used only by ticker1090, and is the only one it's  *)
 (* interested in. It's tempting to use -G here rather than -g, but it would be  *)
